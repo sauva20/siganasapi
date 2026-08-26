@@ -40,5 +40,3 @@ aiofiles==23.2.1              # Async file I/O untuk upload
 httpx==0.27.0                 # Untuk testing async client
 pytest==8.2.0
 pytest-asyncio==0.23.6
-gradio
-gradio==4.44.1
