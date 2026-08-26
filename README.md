@@ -1,3 +1,14 @@
+---
+title: Siganasapi
+emoji: 🍍
+colorFrom: yellow
+colorTo: green
+sdk: gradio
+sdk_version: 4.41.0
+app_file: app.py
+pinned: false
+---
+
 # 🍍 Nanas Grading Backend API
 
 Backend API untuk sistem grading buah nanas multi-tier berbasis AI (YOLOv11).  
