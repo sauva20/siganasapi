@@ -11,7 +11,7 @@ export const login = async (req: Request, res: Response) => {
     const { username, password } = req.body;
 
     const [rows]: any = await pool.query(
-      "SELECT * FROM User WHERE username = ?",
+      "SELECT * FROM users WHERE username = ?",
       [username]
     );
 
@@ -53,7 +53,7 @@ export const register = async (req: Request, res: Response) => {
     const { username, password, nama_lengkap, no_hp, role } = req.body;
 
     const [existing]: any = await pool.query(
-      "SELECT id FROM User WHERE username = ?",
+      "SELECT id FROM users WHERE username = ?",
       [username]
     );
     
@@ -63,15 +63,16 @@ export const register = async (req: Request, res: Response) => {
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
-    const id = uuidv4();
-
-    await pool.query(
-      "INSERT INTO User (id, username, password_hash, nama_lengkap, no_hp, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())",
-      [id, username, password_hash, nama_lengkap, no_hp, role]
+    // Note: ID in schema is autoincrement Int, not UUID string. 
+    // We should let MySQL generate the ID instead of providing a UUID.
+    
+    const [result]: any = await pool.query(
+      "INSERT INTO users (username, password_hash, nama_lengkap, no_hp, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())",
+      [username, password_hash, nama_lengkap, no_hp, role]
     );
 
     res.status(201).json({
-      id,
+      id: result.insertId,
       username,
       nama_lengkap,
       role
@@ -85,7 +86,7 @@ export const register = async (req: Request, res: Response) => {
 export const getMe = async (req: any, res: Response) => {
   try {
     const [rows]: any = await pool.query(
-      "SELECT id, username, nama_lengkap, no_hp, role, is_active, created_at FROM User WHERE id = ?",
+      "SELECT id, username, nama_lengkap, no_hp, role, is_active, created_at FROM users WHERE id = ?",
       [req.user.id]
     );
     
