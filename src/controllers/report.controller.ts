@@ -1,15 +1,17 @@
 import { Response } from "express";
-import { prisma } from "../db/prisma";
+import { pool } from "../db/mysql";
 import { AuthRequest } from "../middleware/auth";
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   try {
-    const totalBatches = await prisma.batchPanen.count();
+    const [countRows]: any = await pool.query("SELECT COUNT(*) as total FROM batch_panen");
+    const totalBatches = countRows[0].total;
     
-    const gradings = await prisma.gradingNanas.groupBy({
-      by: ["grade_mutu"],
-      _count: { grade_mutu: true },
-    });
+    const [gradings]: any = await pool.query(`
+      SELECT grade_mutu, COUNT(*) as count 
+      FROM grading_nanas 
+      GROUP BY grade_mutu
+    `);
 
     const breakdown = {
       grade_a: 0,
@@ -19,33 +21,34 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     };
 
     gradings.forEach((g: any) => {
-      if (g.grade_mutu === "grade_a") breakdown.grade_a = g._count.grade_mutu;
-      if (g.grade_mutu === "grade_b") breakdown.grade_b = g._count.grade_mutu;
-      if (g.grade_mutu === "grade_c") breakdown.grade_c = g._count.grade_mutu;
-      if (g.grade_mutu === "reject") breakdown.reject = g._count.grade_mutu;
+      if (g.grade_mutu === "grade_a") breakdown.grade_a = g.count;
+      if (g.grade_mutu === "grade_b") breakdown.grade_b = g.count;
+      if (g.grade_mutu === "grade_c") breakdown.grade_c = g.count;
+      if (g.grade_mutu === "reject") breakdown.reject = g.count;
     });
 
     res.json({
       total_batches: totalBatches,
       grading_breakdown: breakdown,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error(error.message || error);
     res.status(500).json({ detail: "Internal server error" });
   }
 };
 
 export const getPerLokasi = async (req: AuthRequest, res: Response) => {
   try {
-    const batches = await prisma.batchPanen.findMany({
-      include: {
-        kebun: true,
-      },
-    });
+    const [batches]: any = await pool.query(`
+      SELECT b.*, k.kecamatan
+      FROM batch_panen b
+      LEFT JOIN kebun k ON b.kebun_id = k.id
+    `);
 
     const locationData: Record<string, any> = {};
 
     batches.forEach((b: any) => {
-      const loc = b.kebun.kecamatan || "Tidak Diketahui";
+      const loc = b.kecamatan || "Tidak Diketahui";
       if (!locationData[loc]) {
         locationData[loc] = {
           total_batch: 0,
@@ -70,23 +73,25 @@ export const getPerLokasi = async (req: AuthRequest, res: Response) => {
     }));
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    console.error(error.message || error);
     res.status(500).json({ detail: "Internal server error" });
   }
 };
 
 export const getPerPetani = async (req: AuthRequest, res: Response) => {
   try {
-    const batches = await prisma.batchPanen.findMany({
-      include: {
-        kebun: { include: { petani: true } },
-      },
-    });
+    const [batches]: any = await pool.query(`
+      SELECT b.*, u.nama_lengkap as petani_nama
+      FROM batch_panen b
+      LEFT JOIN kebun k ON b.kebun_id = k.id
+      LEFT JOIN users u ON k.petani_id = u.id
+    `);
 
     const petaniData: Record<string, any> = {};
 
     batches.forEach((b: any) => {
-      const p = b.kebun.petani.nama_lengkap || "Tidak Diketahui";
+      const p = b.petani_nama || "Tidak Diketahui";
       if (!petaniData[p]) {
         petaniData[p] = {
           total_batch: 0,
@@ -111,7 +116,8 @@ export const getPerPetani = async (req: AuthRequest, res: Response) => {
     }));
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    console.error(error.message || error);
     res.status(500).json({ detail: "Internal server error" });
   }
 };

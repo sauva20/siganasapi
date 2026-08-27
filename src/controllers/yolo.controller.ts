@@ -1,10 +1,9 @@
 import { Response } from "express";
-import { prisma } from "../db/prisma";
+import { pool } from "../db/mysql";
 import { AuthRequest } from "../middleware/auth";
 import { determineGrade, DSSInput } from "../services/dss_engine";
 import { syncBlock } from "../services/traceability_service";
 import { exec } from "child_process";
-import path from "path";
 
 export const scanPineapple = async (req: AuthRequest, res: Response) => {
   try {
@@ -16,11 +15,11 @@ export const scanPineapple = async (req: AuthRequest, res: Response) => {
     const imagePath = req.file.path;
     const batchIdNum = Number(batch_id);
 
-    const batch = await prisma.batchPanen.findUnique({ where: { id: batchIdNum } });
+    const [batchRows]: any = await pool.query("SELECT * FROM batch_panen WHERE id = ?", [batchIdNum]);
+    const batch = batchRows[0];
     if (!batch) return res.status(404).json({ detail: "Batch tidak ditemukan" });
 
     // Call Python script for YOLO inference
-    // Usage: python yolo_inference.py <image_path>
     const yoloScript = process.env.YOLO_SCRIPT_PATH || "yolo_inference.py";
     const command = `python ${yoloScript} "${imagePath}"`;
 
@@ -31,7 +30,6 @@ export const scanPineapple = async (req: AuthRequest, res: Response) => {
         yoloResult = JSON.parse(stdout);
       } catch (err) {
         console.error("YOLO Error:", err);
-        // Fallback or handle error
         return res.status(500).json({ detail: "Gagal melakukan inferensi YOLO" });
       }
 
@@ -47,25 +45,33 @@ export const scanPineapple = async (req: AuthRequest, res: Response) => {
 
       const dssOutput = determineGrade(dssInput);
 
-      const grading = await prisma.gradingNanas.create({
-        data: {
-          batch_id: batchIdNum,
-          foto_url: `/static/uploads/${req.file!.filename}`,
-          input_brix_manual: dssInput.input_brix_manual,
-          input_berat_manual_kg: dssInput.input_berat_manual_kg,
-          confidence_score: yoloResult.confidence_score,
-          yolo_raw_output: JSON.stringify(yoloResult.raw_output),
-          deteksi_ukuran: dssInput.deteksi_ukuran as any,
-          deteksi_warna_kulit: dssInput.deteksi_warna_kulit as any,
-          deteksi_kematangan_pct: dssInput.deteksi_kematangan_pct,
-          kondisi_mahkota: dssInput.kondisi_mahkota as any,
-          kondisi_defect: dssInput.kondisi_defect,
-          grade_mutu: dssOutput.grade_mutu,
-          rekomendasi_pasar: dssOutput.rekomendasi_pasar,
-          estimasi_harga_min: dssOutput.estimasi_harga_min,
-          estimasi_harga_max: dssOutput.estimasi_harga_max,
-        },
-      });
+      const [insertResult]: any = await pool.query(
+        `INSERT INTO grading_nanas (
+          batch_id, foto_url, input_brix_manual, input_berat_manual_kg, confidence_score,
+          yolo_raw_output, deteksi_ukuran, deteksi_warna_kulit, deteksi_kematangan_pct,
+          kondisi_mahkota, kondisi_defect, grade_mutu, rekomendasi_pasar, estimasi_harga_min, estimasi_harga_max, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          batchIdNum,
+          `/static/uploads/${req.file!.filename}`,
+          dssInput.input_brix_manual || null,
+          dssInput.input_berat_manual_kg || null,
+          yoloResult.confidence_score,
+          JSON.stringify(yoloResult.raw_output),
+          dssInput.deteksi_ukuran,
+          dssInput.deteksi_warna_kulit,
+          dssInput.deteksi_kematangan_pct,
+          dssInput.kondisi_mahkota,
+          dssInput.kondisi_defect,
+          dssOutput.grade_mutu,
+          dssOutput.rekomendasi_pasar,
+          dssOutput.estimasi_harga_min,
+          dssOutput.estimasi_harga_max
+        ]
+      );
+
+      const [gradingRows]: any = await pool.query("SELECT * FROM grading_nanas WHERE id = ?", [insertResult.insertId]);
+      const grading = gradingRows[0];
 
       // Update Batch Recap
       const incA = dssOutput.grade_mutu === "grade_a" ? 1 : 0;
@@ -74,23 +80,28 @@ export const scanPineapple = async (req: AuthRequest, res: Response) => {
       const incR = dssOutput.grade_mutu === "reject" ? 1 : 0;
       const addedBerat = dssInput.input_berat_manual_kg || 0;
 
-      const updatedBatch = await prisma.batchPanen.update({
-        where: { id: batchIdNum },
-        data: {
-          total_buah: { increment: 1 },
-          total_berat_kg: { increment: addedBerat },
-          jumlah_grade_a: { increment: incA },
-          jumlah_grade_b: { increment: incB },
-          jumlah_grade_c: { increment: incC },
-          jumlah_reject: { increment: incR },
-        },
-      });
+      await pool.query(
+        `UPDATE batch_panen SET 
+          total_buah = total_buah + 1,
+          total_berat_kg = total_berat_kg + ?,
+          jumlah_grade_a = jumlah_grade_a + ?,
+          jumlah_grade_b = jumlah_grade_b + ?,
+          jumlah_grade_c = jumlah_grade_c + ?,
+          jumlah_reject = jumlah_reject + ?,
+          updated_at = NOW()
+        WHERE id = ?`,
+        [addedBerat, incA, incB, incC, incR, batchIdNum]
+      );
+
+      const [updatedBatchRows]: any = await pool.query("SELECT * FROM batch_panen WHERE id = ?", [batchIdNum]);
+      const updatedBatch = updatedBatchRows[0];
 
       await syncBlock(updatedBatch);
 
       res.status(201).json({ grading, dss_output: dssOutput, yolo_result: yoloResult });
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error(error.message || error);
     res.status(500).json({ detail: "Internal server error" });
   }
 };

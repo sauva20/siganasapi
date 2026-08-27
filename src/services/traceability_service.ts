@@ -1,12 +1,13 @@
-import { prisma } from "../db/prisma";
+import { pool } from "../db/mysql";
 import { GENESIS_HASH, buildBlockData, computeHash } from "./blockchain_hash";
-import { BatchPanen, Kebun, User } from "@prisma/client";
 
-export const syncBlock = async (batch: BatchPanen) => {
-  const kebun = await prisma.kebun.findUnique({ where: { id: batch.kebun_id } });
+export const syncBlock = async (batch: any) => {
+  const [kebunRows]: any = await pool.query("SELECT * FROM kebun WHERE id = ?", [batch.kebun_id]);
+  const kebun = kebunRows[0];
   if (!kebun) throw new Error("Kebun not found");
 
-  const petani = await prisma.user.findUnique({ where: { id: kebun.petani_id } });
+  const [petaniRows]: any = await pool.query("SELECT * FROM users WHERE id = ?", [kebun.petani_id]);
+  const petani = petaniRows[0];
   if (!petani) throw new Error("Petani not found");
 
   const blockDataObj = buildBlockData(
@@ -31,48 +32,41 @@ export const syncBlock = async (batch: BatchPanen) => {
 
   const blockDataString = JSON.stringify(blockDataObj);
 
-  const existingBlock = await prisma.traceabilityBlockchain.findUnique({
-    where: { batch_id: batch.id },
-  });
+  const [existingBlockRows]: any = await pool.query(
+    "SELECT * FROM traceability_blockchain WHERE batch_id = ?",
+    [batch.id]
+  );
+  const existingBlock = existingBlockRows[0];
 
   if (existingBlock) {
     const newHash = computeHash(blockDataObj, existingBlock.previous_hash);
-    const updatedBlock = await prisma.traceabilityBlockchain.update({
-      where: { id: existingBlock.id },
-      data: {
-        block_data: blockDataString,
-        block_hash: newHash,
-        is_valid: true,
-      },
-    });
-    return updatedBlock;
+    await pool.query(
+      "UPDATE traceability_blockchain SET block_data = ?, block_hash = ?, is_valid = 1, updated_at = NOW() WHERE id = ?",
+      [blockDataString, newHash, existingBlock.id]
+    );
+    const [updatedBlockRows]: any = await pool.query("SELECT * FROM traceability_blockchain WHERE id = ?", [existingBlock.id]);
+    return updatedBlockRows[0];
   }
 
-  const lastBlock = await prisma.traceabilityBlockchain.findFirst({
-    orderBy: { block_index: "desc" },
-  });
+  const [lastBlockRows]: any = await pool.query("SELECT * FROM traceability_blockchain ORDER BY block_index DESC LIMIT 1");
+  const lastBlock = lastBlockRows[0];
 
   const blockIndex = lastBlock ? lastBlock.block_index + 1 : 0;
   const previousHash = lastBlock ? lastBlock.block_hash : GENESIS_HASH;
   const blockHash = computeHash(blockDataObj, previousHash);
 
-  const newBlock = await prisma.traceabilityBlockchain.create({
-    data: {
-      batch_id: batch.id,
-      block_data: blockDataString,
-      block_hash: blockHash,
-      previous_hash: previousHash,
-      block_index: blockIndex,
-    },
-  });
+  const [result]: any = await pool.query(
+    "INSERT INTO traceability_blockchain (batch_id, block_data, block_hash, previous_hash, block_index, is_valid, validated_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())",
+    [batch.id, blockDataString, blockHash, previousHash, blockIndex]
+  );
 
-  return newBlock;
+  const [newBlockRows]: any = await pool.query("SELECT * FROM traceability_blockchain WHERE id = ?", [result.insertId]);
+  return newBlockRows[0];
 };
 
 export const verifyBlock = async (batchId: number) => {
-  const block = await prisma.traceabilityBlockchain.findUnique({
-    where: { batch_id: batchId },
-  });
+  const [blockRows]: any = await pool.query("SELECT * FROM traceability_blockchain WHERE batch_id = ?", [batchId]);
+  const block = blockRows[0];
 
   if (!block) {
     return { found: false, is_valid: null, detail: "Block tidak ditemukan untuk batch ini." };
@@ -82,10 +76,10 @@ export const verifyBlock = async (batchId: number) => {
   const recomputedHash = computeHash(blockDataObj, block.previous_hash);
   const isValid = recomputedHash === block.block_hash;
 
-  await prisma.traceabilityBlockchain.update({
-    where: { id: block.id },
-    data: { is_valid: isValid },
-  });
+  await pool.query(
+    "UPDATE traceability_blockchain SET is_valid = ? WHERE id = ?",
+    [isValid ? 1 : 0, block.id]
+  );
 
   return {
     found: true,
