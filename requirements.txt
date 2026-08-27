@@ -8,6 +8,8 @@ fastapi>=0.111.0
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9       # Untuk upload file (Form & File)
 gradio==5.0.0                 # Ditambahkan untuk memperbaiki error Hugging Face Hub (HfFolder)
+huggingface-hub==0.22.2       # KUNCI JAWABAN FIX ERROR HfFolder
+
 
 
 # --- Database ---
