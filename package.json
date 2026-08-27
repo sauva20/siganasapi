@@ -11,7 +11,6 @@
     "prisma:push": "prisma db push"
   },
   "dependencies": {
-    "@prisma/adapter-mysql2": "^5.22.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -21,7 +20,6 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.9.7",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"
   },
