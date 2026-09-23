@@ -120,3 +120,15 @@ export const sealBatch = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ detail: "Internal server error" });
   }
 };
+
+export const verifyBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const batchId = Number(req.params.id);
+    const { verifyBlock } = await import("../services/traceability_service");
+    const verifyResult = await verifyBlock(batchId);
+    res.json(verifyResult);
+  } catch (error: any) {
+    console.error(error.message || error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+};
