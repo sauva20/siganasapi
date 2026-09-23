@@ -86,3 +86,37 @@ export const getBatch = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ detail: "Internal server error" });
   }
 };
+
+export const sealBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const batchId = Number(req.params.id);
+    const [batchRows]: any = await pool.query("SELECT * FROM batch_panen WHERE id = ?", [batchId]);
+    const batch = batchRows[0];
+    
+    if (!batch) return res.status(404).json({ detail: "Batch tidak ditemukan" });
+    if (batch.status_distribusi !== 'di_lahan') {
+      return res.status(400).json({ detail: "Batch ini sudah di-seal (bukan lagi di lahan)" });
+    }
+
+    // Ubah status
+    await pool.query("UPDATE batch_panen SET status_distribusi = 'di_pengepul', updated_at = NOW() WHERE id = ?", [batchId]);
+    
+    // Ambil ulang untuk sync blockchain
+    const [updatedBatchRows]: any = await pool.query("SELECT * FROM batch_panen WHERE id = ?", [batchId]);
+    const updatedBatch = updatedBatchRows[0];
+
+    // Sinkronisasi terakhir ke blockchain
+    await syncBlock(updatedBatch);
+
+    const [blockchain]: any = await pool.query("SELECT * FROM traceability_blockchain WHERE batch_id = ?", [batchId]);
+
+    res.json({
+      message: "Batch berhasil di-seal dan blockchain telah di-generate.",
+      batch: updatedBatch,
+      blockchain: blockchain.length > 0 ? blockchain[0] : null
+    });
+  } catch (error: any) {
+    console.error(error.message || error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+};

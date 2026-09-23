@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { authenticateToken, requireRole } from "../middleware/auth";
-import { scanPineapple } from "../controllers/yolo.controller";
+import { scanPineapple, saveGradingResult } from "../controllers/yolo.controller";
 
 const router = Router();
 
@@ -36,5 +36,6 @@ const fileFilter = (req: any, file: any, cb: any) => {
 const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // 10 MB
 
 router.post("/scan", authenticateToken, requireRole(["petani", "pengepul", "dinas_pertanian"]), upload.single("file"), scanPineapple);
+router.post("/save-result", authenticateToken, requireRole(["petani", "pengepul", "dinas_pertanian"]), saveGradingResult);
 
 export default router;

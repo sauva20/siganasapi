@@ -4,8 +4,9 @@ import { AuthRequest } from "../middleware/auth";
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   try {
-    const [countRows]: any = await pool.query("SELECT COUNT(*) as total FROM batch_panen");
-    const totalBatches = countRows[0].total;
+    const [batchRows]: any = await pool.query("SELECT COUNT(*) as total_batch, SUM(total_buah) as total_buah FROM batch_panen");
+    const totalBatches = batchRows[0].total_batch || 0;
+    const totalBuah = batchRows[0].total_buah || 0;
     
     const [gradings]: any = await pool.query(`
       SELECT grade_mutu, COUNT(*) as count 
@@ -14,22 +15,27 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     `);
 
     const breakdown = {
-      grade_a: 0,
-      grade_b: 0,
-      grade_c: 0,
+      grade_a_ekspor: 0,
+      grade_b_premium_lokal: 0,
+      grade_c_standar: 0,
       reject: 0,
     };
 
     gradings.forEach((g: any) => {
-      if (g.grade_mutu === "grade_a") breakdown.grade_a = g.count;
-      if (g.grade_mutu === "grade_b") breakdown.grade_b = g.count;
-      if (g.grade_mutu === "grade_c") breakdown.grade_c = g.count;
+      if (g.grade_mutu === "grade_a") breakdown.grade_a_ekspor = g.count;
+      if (g.grade_mutu === "grade_b") breakdown.grade_b_premium_lokal = g.count;
+      if (g.grade_mutu === "grade_c") breakdown.grade_c_standar = g.count;
       if (g.grade_mutu === "reject") breakdown.reject = g.count;
     });
 
+    const totalFromGradings = breakdown.grade_a_ekspor + breakdown.grade_b_premium_lokal + breakdown.grade_c_standar + breakdown.reject;
+    const foodLoss = totalFromGradings > 0 ? ((breakdown.reject / totalFromGradings) * 100).toFixed(1) : 0;
+
     res.json({
-      total_batches: totalBatches,
-      grading_breakdown: breakdown,
+      total_batch: totalBatches,
+      total_buah: totalBuah,
+      komposisi_grade: breakdown,
+      persentase_food_loss: foodLoss
     });
   } catch (error: any) {
     console.error(error.message || error);
