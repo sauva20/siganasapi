@@ -49,8 +49,8 @@ export const scanPineapple = async (req: AuthRequest, res: Response) => {
         `INSERT INTO grading_nanas (
           batch_id, foto_url, input_brix_manual, input_berat_manual_kg, confidence_score,
           yolo_raw_output, deteksi_ukuran, deteksi_warna_kulit, deteksi_kematangan_pct,
-          kondisi_mahkota, kondisi_defect, grade_mutu, rekomendasi_pasar, estimasi_harga_min, estimasi_harga_max, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          kondisi_mahkota, kondisi_defect, grade_mutu, rekomendasi_pasar, estimasi_harga_min, estimasi_harga_max, scanned_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           batchIdNum,
           `/static/uploads/${req.file!.filename}`,
@@ -134,8 +134,8 @@ export const saveGradingResult = async (req: AuthRequest, res: Response) => {
       `INSERT INTO grading_nanas (
         batch_id, foto_url, confidence_score,
         yolo_raw_output, deteksi_ukuran, deteksi_warna_kulit, deteksi_kematangan_pct,
-        kondisi_mahkota, kondisi_defect, grade_mutu, rekomendasi_pasar, estimasi_harga_min, estimasi_harga_max, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        kondisi_mahkota, kondisi_defect, grade_mutu, rekomendasi_pasar, estimasi_harga_min, estimasi_harga_max, scanned_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         batchIdNum,
         `/static/uploads/offline-mode.jpg`,
