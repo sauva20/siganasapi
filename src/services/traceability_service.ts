@@ -72,7 +72,14 @@ export const verifyBlock = async (batchId: number) => {
     return { found: false, is_valid: null, detail: "Block tidak ditemukan untuk batch ini." };
   }
 
-  const blockDataObj = JSON.parse(block.block_data);
+  let blockDataObj;
+  try {
+    blockDataObj = typeof block.block_data === 'string' ? JSON.parse(block.block_data) : block.block_data;
+  } catch (e) {
+    console.error("JSON.parse error for block_data:", block.block_data);
+    return { found: true, is_valid: false, detail: "Data block corrupt atau terpotong di database." };
+  }
+
   const recomputedHash = computeHash(blockDataObj, block.previous_hash);
   const isValid = recomputedHash === block.block_hash;
 

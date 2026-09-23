@@ -141,7 +141,7 @@ model GradingNanas {
 model TraceabilityBlockchain {
   id            Int      @id @default(autoincrement())
   batch_id      Int      @unique
-  block_data    String // JSON string
+  block_data    String   @db.Text // JSON string
   block_hash    String
   previous_hash String   @default("0000000000000000000000000000000000000000000000000000000000000000")
   block_index   Int
