@@ -35,7 +35,7 @@ app.use("/api/v1/kebun", kebunRoutes);
 app.use("/api/v1/batches", batchRoutes);
 app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/yolo", yoloRoutes);
-app.use("/public", publicRoutes);
+app.use("/api/v1/public", publicRoutes);
 
 // Serve uploaded static files
 app.use('/static', express.static('static'));
