@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "prisma generate && prisma db push --accept-data-loss && tsc",
+    "build": "node fix-prisma.js && prisma generate && prisma db push --accept-data-loss && tsc",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },
